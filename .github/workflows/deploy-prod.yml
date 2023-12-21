@@ -103,7 +103,7 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
-            cd /root/postgresql
+            cd /root/db/postgresql
             export POSTGRES_USER=${{ secrets.POSTGRES_USER }}
             export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             export POSTGRES_DB=${{ secrets.POSTGRES_DB }}
@@ -129,7 +129,7 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
-            cd /root/postgresql
+            cd /root/db/postgresql
             export POSTGRES_URL="postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@${{ secrets.SERVER_HOST }}:5432/${{ secrets.POSTGRES_DB }}"
             npx -y prisma migrate deploy
             
