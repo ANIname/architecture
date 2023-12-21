@@ -18,28 +18,30 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
-          script: sudo apt-get update
+          script: |
+            sudo apt-get update -y
+            sudo apt-get upgrade -y
 
       - name: Install/Update Git
         uses: appleboy/ssh-action@master
         with:
-          username: 'root'
+          username: ${{ secrets.SERVER_USERNAME }}
           host: ${{ secrets.SERVER_HOST }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
             if ! [ -x "$(command -v git)" ]; then
               echo "Install Git..."
-              sudo apt-get install git
+              sudo apt-get install git -y
             else
               echo "Update Git..."
-              sudo apt-get install --only-upgrade git
+              sudo apt-get install --only-upgrade git -y
             fi
 
       - name: Install/Update Docker
         uses: appleboy/ssh-action@master
         with:
-          username: 'root'
+          username: ${{ secrets.SERVER_USERNAME }}
           host: ${{ secrets.SERVER_HOST }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
@@ -50,13 +52,13 @@ jobs:
               sh get-docker.sh
             else
               echo "Update docker..."
-              apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io
+              apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io -y
             fi
 
       - name: Install Docker Compose if not installed
         uses: appleboy/ssh-action@master
         with:
-          username: 'root'
+          username: ${{ secrets.SERVER_USERNAME }}
           host: ${{ secrets.SERVER_HOST }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
@@ -68,6 +70,7 @@ jobs:
             fi
 
   upload:
+    needs: install-or-update
     runs-on: ubuntu-latest
     environment: prod
 
@@ -79,13 +82,14 @@ jobs:
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
-          username: 'root'
+          username: ${{ secrets.SERVER_USERNAME }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           source: 'docker-compose.yml'
           target: '/root/docker-compose.yml'
 
   run:
+    needs: upload
     runs-on: ubuntu-latest
     environment: prod
 
@@ -99,7 +103,7 @@ jobs:
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
 
         with:
-          username: 'root'
+          username: ${{ secrets.SERVER_USERNAME }}
           host: ${{ secrets.SERVER_HOST }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
