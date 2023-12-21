@@ -1,0 +1,108 @@
+name: Deploy to prod environment
+
+on:
+  push:
+    branches: [prod]
+    paths: ['docker-compose.yml']
+
+jobs:
+  install-or-update:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Update apt-get
+        uses: appleboy/ssh-action@master
+        with:
+          username: ${{ secrets.SERVER_USERNAME }}
+          host: ${{ secrets.SERVER_HOST }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: sudo apt-get update
+
+      - name: Install/Update Git
+        uses: appleboy/ssh-action@master
+        with:
+          username: 'root'
+          host: ${{ secrets.SERVER_HOST }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: |
+            if ! [ -x "$(command -v git)" ]; then
+              echo "Install Git..."
+              sudo apt-get install git
+            else
+              echo "Update Git..."
+              sudo apt-get install --only-upgrade git
+            fi
+
+      - name: Install/Update Docker
+        uses: appleboy/ssh-action@master
+        with:
+          username: 'root'
+          host: ${{ secrets.SERVER_HOST }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: |
+            if ! [ -x "$(command -v docker)" ]; then
+              echo "Install Docker..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sh get-docker.sh
+            else
+              echo "Update docker..."
+              apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io
+            fi
+
+      - name: Install Docker Compose if not installed
+        uses: appleboy/ssh-action@master
+        with:
+          username: 'root'
+          host: ${{ secrets.SERVER_HOST }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: |
+            if ! [ -x "$(command -v docker-compose)" ]; then
+              echo "Install Docker Compose..."
+              curl -L "https://github.com/docker/compose/releases/download/v2.2.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
+            fi
+
+  upload:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Upload docker-compose.yml
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: 'root'
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          source: 'docker-compose.yml'
+          target: '/root/docker-compose.yml'
+
+  run:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: 'Start docker-compose'
+        uses: appleboy/ssh-action@master
+
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+
+        with:
+          username: 'root'
+          host: ${{ secrets.SERVER_HOST }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: |
+            cd /root
+            POSTGRES_USER=$POSTGRES_USER POSTGRES_PASSWORD=$POSTGRES_PASSWORD POSTGRES_DB=$POSTGRES_DB docker-compose up -d
