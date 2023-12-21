@@ -86,7 +86,7 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           source: 'docker-compose.yml'
-          target: '/root/docker-compose.yml'
+          target: '/root'
 
   run:
     needs: upload
