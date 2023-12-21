@@ -1,0 +1,26 @@
+{
+  "name": "aniname-architecture",
+  "version": "1.0.0",
+  "description": "Architecture for ANIname services",
+  "keywords": [
+    "aniname",
+    "architecture"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ANIname/architecture.git"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "author": "KiiDii <kiidii@aniname.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ANIname/architecture/issues"
+  },
+  "homepage": "https://github.com/ANIname/architecture#readme",
+  "devDependencies": {
+    "@prisma/client": "^5.7.1",
+    "inquirer": "^8.2.6"
+  }
+}
