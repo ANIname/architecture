@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "Game" ALTER COLUMN "deletedAt" DROP NOT NULL,
+ALTER COLUMN "deletedAt" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "GameGonnaBeLucky" ALTER COLUMN "deletedAt" DROP NOT NULL,
+ALTER COLUMN "deletedAt" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "GameGonnaBeLuckyEvent" ALTER COLUMN "deletedAt" DROP NOT NULL,
+ALTER COLUMN "deletedAt" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "User" ALTER COLUMN "deletedAt" DROP NOT NULL,
+ALTER COLUMN "deletedAt" DROP DEFAULT;

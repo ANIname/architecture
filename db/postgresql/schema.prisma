@@ -9,10 +9,61 @@ datasource db {
 }
 
 model User {
-  id String @id @default(uuid())
+  id        String  @id @default(uuid())
   discordId String? @unique
+
+  games Game[]
   
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model Game {
+  id     String  @id @default(uuid())
+  userId String
+  title  GameName
+
+  gonnaBeLucky GameGonnaBeLucky?
+  user         User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  @@unique([userId, title])
+}
+
+model GameGonnaBeLucky {
+  id     String  @id @default(uuid())
+  gameId String @unique
+
+  points Int
+
+  events GameGonnaBeLuckyEvent[]
+  game   Game @relation(fields: [gameId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model GameGonnaBeLuckyEvent {
+  id                 String  @id @default(uuid())
+  gameGonnaBeLuckyId String
+
+  data        String
+  declination String
+
+  points   Int
+
+  gonnaBeLucky GameGonnaBeLucky @relation(fields: [gameGonnaBeLuckyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+enum GameName {
+  gonnaBeLucky
 }
