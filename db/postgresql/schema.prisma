@@ -24,8 +24,10 @@ model Game {
   userId String
   title  GameName
 
-  gonnaBeLucky GameGonnaBeLucky?
-  user         User @relation(fields: [userId], references: [id])
+  gonnaBeLucky      GameGonnaBeLucky?
+  rockPaperScissors GameRockPaperScissors?
+
+  user User @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -41,7 +43,7 @@ model GameGonnaBeLucky {
   points Int
 
   events GameGonnaBeLuckyEvent[]
-  game   Game @relation(fields: [gameId], references: [id])
+  game   Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -57,7 +59,39 @@ model GameGonnaBeLuckyEvent {
 
   points   Int
 
-  gonnaBeLucky GameGonnaBeLucky @relation(fields: [gameGonnaBeLuckyId], references: [id])
+  gonnaBeLucky GameGonnaBeLucky @relation(fields: [gameGonnaBeLuckyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model GameRockPaperScissors {
+  id     String  @id @default(uuid())
+  gameId String @unique
+
+  points Int
+
+  events GameRockPaperScissorsEvent[]
+  game   Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model GameRockPaperScissorsEvent {
+  id                      String  @id @default(uuid())
+  gameRockPaperScissorsId String
+  winnersIds              String[]
+  losersIds               String[]
+
+  choice GameRockPaperScissorsChoice
+  status GameRockPaperScissorsEventStatus
+
+  points Int
+
+  rockPaperScissors GameRockPaperScissors @relation(fields: [gameRockPaperScissorsId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -66,4 +100,17 @@ model GameGonnaBeLuckyEvent {
 
 enum GameName {
   gonnaBeLucky
+  rockPaperScissors
+}
+
+enum GameRockPaperScissorsChoice {
+  rock
+  paper
+  scissors
+}
+
+enum GameRockPaperScissorsEventStatus {
+  win
+  lose
+  draw
 }
