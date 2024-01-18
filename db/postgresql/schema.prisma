@@ -13,6 +13,8 @@ model User {
   discordId String? @unique
 
   games Game[]
+
+  gender UserGender @default(preferNotToSay)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -113,4 +115,11 @@ enum GameRockPaperScissorsEventStatus {
   win
   lose
   draw
+}
+
+enum UserGender {
+  male
+  female
+  other
+  preferNotToSay
 }
