@@ -28,6 +28,7 @@ model Game {
 
   gonnaBeLucky      GameGonnaBeLucky?
   rockPaperScissors GameRockPaperScissors?
+  discordGuild      GameDiscordGuild?
 
   user User @relation(fields: [userId], references: [id])
 
@@ -100,9 +101,40 @@ model GameRockPaperScissorsEvent {
   deletedAt DateTime?
 }
 
+model GameDiscordGuild {
+  id     String  @id @default(uuid())
+  gameId String @unique
+
+  points Int
+
+  events GameDiscordGuildEvent[]
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model GameDiscordGuildEvent {
+  id                 String  @id @default(uuid())
+  gameDiscordGuildId String
+
+  reason String
+
+  points   Int
+
+  discordGuild GameDiscordGuild @relation(fields: [gameDiscordGuildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+
+}
+
 enum GameName {
   gonnaBeLucky
   rockPaperScissors
+  discordGuild
 }
 
 enum GameRockPaperScissorsChoice {
