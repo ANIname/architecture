@@ -14,6 +14,8 @@ model User {
 
   games Game[]
 
+  isBot Boolean @default(false)
+
   gender UserGender @default(preferNotToSay)
   
   createdAt DateTime @default(now())
