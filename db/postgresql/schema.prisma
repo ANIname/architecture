@@ -23,6 +23,170 @@ model User {
   deletedAt DateTime?
 }
 
+model DiscordBotContextMenuCommand {
+  id String @id @default(uuid())
+
+  name               String
+  name_localizations DiscordBotContextMenuCommandNameLocalization?
+
+  default_member_permissions String
+  dm_permission              Boolean @default(false)
+
+  type Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotContextMenuCommandNameLocalization {
+  id        String @id @default(uuid())
+  commandId String @unique
+
+  uk String
+  ru String
+
+  command DiscordBotContextMenuCommand @relation(fields: [commandId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotSlashCommand {
+  id String @id @default(uuid())
+
+  name               String
+  name_localizations DiscordBotSlashCommandNameLocalization?
+
+  description               String
+  description_localizations DiscordBotSlashCommandDescriptionLocalization?
+
+  default_member_permissions String
+  dm_permission              Boolean @default(false)
+  nsfw                       Boolean @default(false)
+
+  options DiscordBotSlashCommandOption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotSlashCommandOption {
+  id        String @id @default(uuid())
+  commandId String
+
+  name               String
+  name_localizations DiscordBotSlashCommandOptionNameLocalization?
+
+  description               String
+  description_localizations DiscordBotSlashCommandOptionDescriptionLocalization?
+
+  type         Int
+  required     Boolean @default(false)
+  autocomplete Boolean @default(false)
+
+  max_value Int?
+  min_value Int?
+
+  max_length Int?
+  min_length Int?
+
+  choices DiscordBotSlashCommandOptionChoice[]
+  command DiscordBotSlashCommand @relation(fields: [commandId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotSlashCommandOptionChoice {
+  id              String @id @default(uuid())
+  commandOptionId String
+
+  name                String
+  name_loacalizations DiscordBotSlashCommandOptionChoiceNameLocalization?
+
+  value String
+
+  commandOption DiscordBotSlashCommandOption @relation(fields: [commandOptionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotSlashCommandOptionChoiceNameLocalization {
+  id                    String @id @default(uuid())
+  commandOptionChoiceId String @unique
+
+  uk String
+  ru String
+
+  commandOptionChoice DiscordBotSlashCommandOptionChoice @relation(fields: [commandOptionChoiceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotSlashCommandOptionNameLocalization {
+  id              String @id @default(uuid())
+  commandOptionId String @unique
+
+  uk String
+  ru String
+
+  commandOption DiscordBotSlashCommandOption @relation(fields: [commandOptionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotSlashCommandOptionDescriptionLocalization {
+  id              String @id @default(uuid())
+  commandOptionId String @unique
+
+  uk String
+  ru String
+
+  commandOption DiscordBotSlashCommandOption @relation(fields: [commandOptionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotSlashCommandNameLocalization {
+  id        String @id @default(uuid())
+  commandId String @unique
+
+  uk String
+  ru String
+
+  command DiscordBotSlashCommand @relation(fields: [commandId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model DiscordBotSlashCommandDescriptionLocalization {
+  id        String @id @default(uuid())
+  commandId String @unique
+
+  uk String
+  ru String
+
+  command DiscordBotSlashCommand @relation(fields: [commandId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
 model Game {
   id     String  @id @default(uuid())
   userId String
