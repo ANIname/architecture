@@ -29,7 +29,7 @@ model DiscordBotContextMenuCommand {
   name               String
   name_localizations DiscordBotContextMenuCommandNameLocalization?
 
-  default_member_permissions String
+  default_member_permissions String?
   dm_permission              Boolean @default(false)
 
   type Int
@@ -62,7 +62,7 @@ model DiscordBotSlashCommand {
   description               String
   description_localizations DiscordBotSlashCommandDescriptionLocalization?
 
-  default_member_permissions String
+  default_member_permissions String?
   dm_permission              Boolean @default(false)
   nsfw                       Boolean @default(false)
 
