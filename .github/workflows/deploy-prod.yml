@@ -3,7 +3,7 @@ name: Deploy to prod environment
 on:
   push:
     branches: [prod]
-    paths: ['docker-compose.yml', '.github/workflows/deploy-prod.yml']
+    paths: ['docker-compose.yml', '.github/workflows/deploy-prod.yml', 'schema.prisma']
 
 jobs:
   install-or-update:
