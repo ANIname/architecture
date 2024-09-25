@@ -11,8 +11,6 @@ jobs:
 
     steps:
       - name: 'Prisma Migrate'
-        run: npx prisma migrate deploy --schema ./db/postgresql/schema.prisma
+        run: npx prisma migrate deploy --schema ../../db/postgresql/schema.prisma
         env:
           ANINAME_POSTGRES_URL: ${{ secrets.ANINAME_POSTGRES_URL }}
-      
-            
