@@ -5,12 +5,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("POSTGRES_URL")
+  url      = env("ANINAME_POSTGRES_URL")
 }
 
 model User {
-  id        String  @id @default(uuid())
-  discordId String? @unique
+  id         String  @id @default(uuid())
+  discordId  String? @unique
+  telegramId String? @unique
 
   games Game[]
 
