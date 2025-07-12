@@ -15,4 +15,4 @@ jobs:
       - name: 'Prisma Migrate'
         run: npx prisma migrate deploy --schema ./db/postgresql/schema.prisma
         env:
-          ANINAME_POSTGRES_URL: ${{ secrets.ANINAME_POSTGRES_URL }}
+          ANINAME_POSTGRES_URL: postgresql://${{ secrets.POSTGRESQL_USERNAME }}:${{ secrets.POSTGRESQL_PASSWORD }}@localhost:${{ secrets.POSTGRESQL_PORT }}/${{ secrets.POSTGRESQL_DATABASE }}
