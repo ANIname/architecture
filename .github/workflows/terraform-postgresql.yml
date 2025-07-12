@@ -27,8 +27,9 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1
 
-    # Create terraform.tfvars with secrets
+    # Create terraform.tfvars with secrets (only during apply)
     - name: Create Terraform Variables
+      if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
       run: |
         cat > terraform.tfvars << EOF
         server_host         = "${{ secrets.SERVER_HOST }}"
@@ -43,12 +44,17 @@ jobs:
     - name: Terraform Init
       run: terraform init
 
-    # Format check
+    # Format Terraform code
     - name: Terraform Format
+      run: terraform fmt
+
+    # Format check
+    - name: Terraform Format Check
       run: terraform fmt -check
 
-    # Plan changes
+    # Plan changes (only if we have variables)
     - name: Terraform Plan
+      if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
       run: terraform plan -input=false
 
     # Apply changes on push to prod
