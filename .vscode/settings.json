@@ -1,5 +1,11 @@
 {
   "cSpell.words": [
-    "ANINAME"
+    "ANINAME",
+    "appleboy",
+    "autoremove",
+    "CREATEDB",
+    "dumpall",
+    "initdb",
+    "psql"
   ]
 }

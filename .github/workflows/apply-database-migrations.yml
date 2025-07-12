@@ -1,4 +1,4 @@
-name: Deploy to prod environment
+name: Apply database migrations
 
 on:
   push:
@@ -8,6 +8,7 @@ jobs:
   apply-main-database-migrations:
     runs-on: ubuntu-latest
     environment: prod
+    needs: [check-postgresql-installation]
 
     steps:
       - name: Checkout code
@@ -15,4 +16,4 @@ jobs:
       - name: 'Prisma Migrate'
         run: npx prisma migrate deploy --schema ./db/postgresql/schema.prisma
         env:
-          ANINAME_POSTGRES_URL: postgresql://${{ secrets.POSTGRESQL_USERNAME }}:${{ secrets.POSTGRESQL_PASSWORD }}@${{ secrets.SERVER_HOST }}:${{ secrets.POSTGRESQL_PORT }}/${{ secrets.POSTGRESQL_DATABASE }}
+          ANINAME_POSTGRES_URL: postgresql://${{ secrets.POSTGRESQL_USERNAME }}:${{ secrets.POSTGRESQL_PASSWORD }}@${{ secrets.SERVER_HOST }}:${{ secrets.POSTGRESQL_PORT }}/${{ secrets.POSTGRESQL_DATABASE }} 

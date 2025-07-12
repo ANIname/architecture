@@ -1,0 +1,118 @@
+name: Check and install PostgreSQL 17
+
+on:
+  push:
+    branches: [prod]
+
+jobs:
+  check-postgresql-installation:
+    runs-on: ubuntu-latest
+    environment: prod
+    outputs:
+      status: ${{ steps.set_status.outputs.status }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Check PostgreSQL installation and version
+        id: check_pg
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            if command -v psql &> /dev/null; then
+              PG_VERSION=$(psql --version | grep -oP '\d+' | head -1)
+              if [[ "$PG_VERSION" == "17" ]]; then
+                echo "✅ PostgreSQL 17 is already installed"
+                echo "status=up_to_date" >> $GITHUB_OUTPUT
+              else
+                echo "⚠️ PostgreSQL needs upgrade from version $PG_VERSION"
+                echo "status=needs_upgrade" >> $GITHUB_OUTPUT
+                echo "current_version=$PG_VERSION" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "❌ PostgreSQL is not installed"
+              echo "status=not_installed" >> $GITHUB_OUTPUT
+            fi
+
+      - name: Set status output
+        id: set_status
+        run: |
+          echo "status=${{ steps.check_pg.outputs.status }}" >> $GITHUB_OUTPUT
+
+      - name: Install PostgreSQL 17 (if not installed)
+        if: steps.set_status.outputs.status == 'not_installed'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            echo "🚀 Starting PostgreSQL 17 installation..."
+            sudo apt update
+            sudo apt install -y postgresql-17 postgresql-contrib-17
+            echo "📦 PostgreSQL packages installed"
+            sudo systemctl start postgresql
+            sudo systemctl enable postgresql
+            echo "🔄 PostgreSQL service started"
+            sudo -u postgres psql <<'PSQL_EOF'
+              CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};
+              CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}';
+              GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
+            PSQL_EOF
+            echo "👤 Database and user created"
+            sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/'" /etc/postgresql/17/main/postgresql.conf
+            sudo sed -i "s/local   all             all                                     peer/local   all             all                                     md5/" /etc/postgresql/17/main/pg_hba.conf
+            sudo sed -i "s/host    all             all             127.0.0.1\/32            md5/host    all             all             0.0.0.0\/0               md5/" /etc/postgresql/17/main/pg_hba.conf
+            sudo systemctl restart postgresql
+            echo "✨ PostgreSQL configuration completed"
+
+      - name: Upgrade PostgreSQL to version 17 (if needed)
+        if: steps.set_status.outputs.status == 'needs_upgrade'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            echo "📦 Creating backup of current PostgreSQL installation..."
+            sudo -u postgres pg_dumpall > /tmp/postgresql_backup_$(date +%Y%m%d_%H%M%S).sql
+            echo "🗑️ Removing old PostgreSQL version..."
+            sudo systemctl stop postgresql
+            sudo apt remove --purge -y postgresql*
+            sudo apt autoremove -y
+            sudo rm -rf /var/lib/postgresql/*/main
+            echo "🚀 Installing PostgreSQL 17..."
+            sudo apt update
+            sudo apt install -y postgresql-17 postgresql-contrib-17
+            sudo -u postgres /usr/lib/postgresql/17/bin/initdb -D /var/lib/postgresql/17/main
+            sudo systemctl start postgresql
+            sudo systemctl enable postgresql
+            echo "♻️ Restoring database from backup..."
+            sudo -u postgres psql -f /tmp/postgresql_backup_*.sql
+            echo "⚙️ Configuring PostgreSQL..."
+            sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/'" /etc/postgresql/17/main/postgresql.conf
+            sudo sed -i "s/local   all             all                                     peer/local   all             all                                     md5/" /etc/postgresql/17/main/pg_hba.conf
+            sudo sed -i "s/host    all             all             127.0.0.1\/32            md5/host    all             all             0.0.0.0\/0               md5/" /etc/postgresql/17/main/pg_hba.conf
+            sudo systemctl restart postgresql
+            echo "✨ Upgrade completed successfully"
+
+      - name: Verify PostgreSQL installation
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            PG_VERSION=$(psql --version | grep -oP '\d+' | head -1)
+            echo "📊 Final PostgreSQL version: $PG_VERSION"
+            if psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" &> /dev/null; then
+              echo "✅ PostgreSQL connection test successful"
+            else
+              echo "❌ PostgreSQL connection test failed"
+              exit 1
+            fi 
