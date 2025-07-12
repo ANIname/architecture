@@ -1,71 +1,40 @@
-name: Check and install PostgreSQL
+name: Setup PostgreSQL 17
 
 on:
   push:
     branches: [prod]
 
 jobs:
-  check-postgresql-installation:
+  setup-postgresql:
     runs-on: ubuntu-latest
     environment: prod
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Check PostgreSQL installation and version
-        id: check_pg
+      - name: Setup PostgreSQL 17
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USERNAME }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
-            if command -v psql &> /dev/null; then
-              PG_VERSION=$(psql --version | grep -oP '\d+' | head -1)
-              if [[ "$PG_VERSION" == "17" ]]; then
-                echo "✅ PostgreSQL 17 is already installed"
-                echo "up_to_date" > /tmp/pg_status.txt
-              else
-                echo "⚠️ PostgreSQL needs upgrade from version $PG_VERSION"
-                echo "needs_upgrade" > /tmp/pg_status.txt
-                echo "$PG_VERSION" > /tmp/pg_current_version.txt
-              fi
-            else
-              echo "❌ PostgreSQL is not installed"
-              echo "not_installed" > /tmp/pg_status.txt
+            echo "🚀 Setting up PostgreSQL 17..."
+            
+            # Install PostgreSQL 17 if not installed
+            if ! command -v psql &> /dev/null; then
+              echo "📦 Installing PostgreSQL 17..."
+              sudo apt update
+              sudo apt install -y wget gnupg2 lsb-release
+              wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+              echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+              sudo apt update
+              sudo apt install -y postgresql-17 postgresql-contrib-17
             fi
-
-      - name: Get PostgreSQL status
-        id: get_status
-        run: |
-          sshpass -p "${{ secrets.SERVER_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "cat /tmp/pg_status.txt" > pg_status.txt
-          echo "status=$(cat pg_status.txt)" >> $GITHUB_OUTPUT
-
-      - name: Install PostgreSQL 17 (if not installed)
-        if: steps.get_status.outputs.status == 'not_installed'
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script: |
-            echo "🚀 Starting PostgreSQL 17 installation..."
             
-            # Add PostgreSQL official repository
-            sudo apt update
-            sudo apt install -y wget gnupg2 lsb-release
-            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-            echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-            
-            # Update package list and install PostgreSQL 17
-            sudo apt update
-            sudo apt install -y postgresql-17 postgresql-contrib-17
-            echo "📦 PostgreSQL packages installed"
-            
-            # Start and enable PostgreSQL service
+            # Start PostgreSQL service
             sudo systemctl start postgresql
             sudo systemctl enable postgresql
-            echo "🔄 PostgreSQL service started"
             
             # Create database and user
             sudo -u postgres psql <<'PSQL_EOF'
@@ -80,150 +49,24 @@ jobs:
               ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${{ secrets.POSTGRESQL_USERNAME }};
               ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${{ secrets.POSTGRESQL_USERNAME }};
             PSQL_EOF
-            echo "👤 Database and user created"
             
-            # Configure PostgreSQL to accept connections
+            # Configure PostgreSQL
             sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf
             sudo sed -i "s/local   all             all                                     peer/local   all             all                                     md5/" /etc/postgresql/17/main/pg_hba.conf
             sudo sed -i "s/host    all             all             127.0.0.1\/32            md5/host    all             all             0.0.0.0\/0               md5/" /etc/postgresql/17/main/pg_hba.conf
             
             # Restart PostgreSQL
             sudo systemctl restart postgresql
-            echo "✨ PostgreSQL configuration completed"
+            
+            echo "✅ PostgreSQL 17 setup completed"
 
-      - name: Upgrade PostgreSQL to version 17 (if needed)
-        if: steps.get_status.outputs.status == 'needs_upgrade'
+      - name: Test connection
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USERNAME }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
-            echo "📦 Creating backup of current PostgreSQL installation..."
-            sudo -u postgres pg_dumpall > /tmp/postgresql_backup_$(date +%Y%m%d_%H%M%S).sql
-            
-            echo "🗑️ Removing old PostgreSQL version..."
-            sudo systemctl stop postgresql
-            sudo apt remove --purge -y postgresql*
-            sudo apt autoremove -y
-            sudo rm -rf /var/lib/postgresql/*/main
-            
-            echo "🚀 Installing PostgreSQL 17..."
-            # Add PostgreSQL official repository
-            sudo apt update
-            sudo apt install -y wget gnupg2 lsb-release
-            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-            echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-            
-            sudo apt update
-            sudo apt install -y postgresql-17 postgresql-contrib-17
-            sudo -u postgres /usr/lib/postgresql/17/bin/initdb -D /var/lib/postgresql/17/main
-            sudo systemctl start postgresql
-            sudo systemctl enable postgresql
-            
-            echo "♻️ Restoring database from backup..."
-            sudo -u postgres psql -f /tmp/postgresql_backup_*.sql
-            
-            # Recreate user with proper permissions if needed
-            sudo -u postgres psql <<'PSQL_EOF'
-              CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;
-              GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
-              \c ${{ secrets.POSTGRESQL_DATABASE }}
-              GRANT ALL ON SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${{ secrets.POSTGRESQL_USERNAME }};
-            PSQL_EOF
-            
-            echo "⚙️ Configuring PostgreSQL..."
-            sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf
-            sudo sed -i "s/local   all             all                                     peer/local   all             all                                     md5/" /etc/postgresql/17/main/pg_hba.conf
-            sudo sed -i "s/host    all             all             127.0.0.1\/32            md5/host    all             all             0.0.0.0\/0               md5/" /etc/postgresql/17/main/pg_hba.conf
-            sudo systemctl restart postgresql
-            echo "✨ Upgrade completed successfully"
-
-      - name: Ensure database and user exist
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script: |
-            echo "🔍 Checking PostgreSQL clusters and status..."
-            
-            # Check all PostgreSQL clusters
-            sudo -u postgres pg_lsclusters
-            
-            # Stop all PostgreSQL services
-            sudo systemctl stop postgresql
-            
-            # Start only PostgreSQL 17
-            sudo systemctl start postgresql@17-main
-            sudo systemctl enable postgresql@17-main
-            
-            # Wait a moment for service to start
-            sleep 3
-            
-            echo "🔍 Checking if database and user exist..."
-            
-            # Check if user exists (with explicit port)
-            USER_EXISTS=$(sudo -u postgres psql -p 5432 -tAc "SELECT 1 FROM pg_roles WHERE rolname='${{ secrets.POSTGRESQL_USERNAME }}';")
-            if [[ "$USER_EXISTS" != "1" ]]; then
-              echo "👤 Creating user ${{ secrets.POSTGRESQL_USERNAME }}..."
-              sudo -u postgres psql -p 5432 -c "CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;"
-            else
-              echo "✅ User ${{ secrets.POSTGRESQL_USERNAME }} already exists"
-            fi
-            
-            # Check if database exists (with explicit port)
-            DB_EXISTS=$(sudo -u postgres psql -p 5432 -tAc "SELECT 1 FROM pg_database WHERE datname='${{ secrets.POSTGRESQL_DATABASE }}';")
-            if [[ "$DB_EXISTS" != "1" ]]; then
-              echo "🗄️ Creating database ${{ secrets.POSTGRESQL_DATABASE }}..."
-              sudo -u postgres psql -p 5432 -c "CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};"
-            else
-              echo "✅ Database ${{ secrets.POSTGRESQL_DATABASE }} already exists"
-            fi
-            
-            # Grant permissions (with explicit port)
-            echo "🔐 Setting up permissions..."
-            sudo -u postgres psql -p 5432 <<'PSQL_EOF'
-              GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
-            PSQL_EOF
-            
-            # Connect to database and set schema permissions (with explicit port)
-            sudo -u postgres psql -p 5432 -d ${{ secrets.POSTGRESQL_DATABASE }} <<'PSQL_EOF'
-              GRANT ALL ON SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${{ secrets.POSTGRESQL_USERNAME }};
-            PSQL_EOF
-            
-            echo "✨ Database and user setup completed"
-
-      - name: Test PostgreSQL connection
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script: |
-            echo "Testing PostgreSQL connection..."
             export PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}"
-            
-            # Test basic connection
-            if psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" > /dev/null 2>&1; then
-              echo "✅ PostgreSQL connection successful"
-            else
-              echo "❌ PostgreSQL connection failed"
-              echo "Checking PostgreSQL status..."
-              sudo systemctl status postgresql
-              echo "Checking if user exists..."
-              sudo -u postgres psql -c "SELECT usename FROM pg_user WHERE usename = '${{ secrets.POSTGRESQL_USERNAME }}';"
-              echo "Checking if database exists..."
-              sudo -u postgres psql -c "SELECT datname FROM pg_database WHERE datname = '${{ secrets.POSTGRESQL_DATABASE }}';"
-              exit 1
-            fi 
+            psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();"
+            echo "✅ Connection test successful" 
