@@ -70,9 +70,15 @@ jobs:
             # Create database and user
             sudo -u postgres psql <<'PSQL_EOF'
               CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};
-              CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}';
+              CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;
               GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};
               ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
+              \c ${{ secrets.POSTGRESQL_DATABASE }}
+              GRANT ALL ON SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${{ secrets.POSTGRESQL_USERNAME }};
             PSQL_EOF
             echo "👤 Database and user created"
             
@@ -118,9 +124,46 @@ jobs:
             echo "♻️ Restoring database from backup..."
             sudo -u postgres psql -f /tmp/postgresql_backup_*.sql
             
+            # Recreate user with proper permissions if needed
+            sudo -u postgres psql <<'PSQL_EOF'
+              CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;
+              GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
+              \c ${{ secrets.POSTGRESQL_DATABASE }}
+              GRANT ALL ON SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${{ secrets.POSTGRESQL_USERNAME }};
+            PSQL_EOF
+            
             echo "⚙️ Configuring PostgreSQL..."
             sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf
             sudo sed -i "s/local   all             all                                     peer/local   all             all                                     md5/" /etc/postgresql/17/main/pg_hba.conf
             sudo sed -i "s/host    all             all             127.0.0.1\/32            md5/host    all             all             0.0.0.0\/0               md5/" /etc/postgresql/17/main/pg_hba.conf
             sudo systemctl restart postgresql
-            echo "✨ Upgrade completed successfully" 
+            echo "✨ Upgrade completed successfully"
+
+      - name: Test PostgreSQL connection
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            echo "Testing PostgreSQL connection..."
+            export PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}"
+            
+            # Test basic connection
+            if psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" > /dev/null 2>&1; then
+              echo "✅ PostgreSQL connection successful"
+            else
+              echo "❌ PostgreSQL connection failed"
+              echo "Checking PostgreSQL status..."
+              sudo systemctl status postgresql
+              echo "Checking if user exists..."
+              sudo -u postgres psql -c "SELECT usename FROM pg_user WHERE usename = '${{ secrets.POSTGRESQL_USERNAME }}';"
+              echo "Checking if database exists..."
+              sudo -u postgres psql -c "SELECT datname FROM pg_database WHERE datname = '${{ secrets.POSTGRESQL_DATABASE }}';"
+              exit 1
+            fi 

@@ -15,6 +15,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+          
       - name: 'Prisma Migrate'
         run: npx prisma migrate deploy --schema ./db/postgresql/schema.prisma
         env:
