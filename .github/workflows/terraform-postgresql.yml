@@ -1,63 +1,105 @@
-name: 'Terraform PostgreSQL Deployment'
+name: Check and install PostgreSQL
 
 on:
   push:
-    branches: [ "prod" ]
-  pull_request:
-
-permissions:
-  contents: read
+    branches: [prod]
 
 jobs:
-  terraform:
-    name: 'Terraform PostgreSQL'
+  check-and-install-postgresql:
     runs-on: ubuntu-latest
     environment: prod
 
-    defaults:
-      run:
-        shell: bash
-
     steps:
-    # Checkout the repository
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    # Setup Terraform
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
 
-    # Create terraform.tfvars with secrets (only during apply)
-    - name: Create Terraform Variables
-      if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
-      run: |
-        cat > terraform.tfvars << EOF
-        server_host         = "${{ secrets.SERVER_HOST }}"
-        server_username     = "${{ secrets.SERVER_USERNAME }}"
-        server_password     = "${{ secrets.SERVER_PASSWORD }}"
-        postgresql_username = "${{ secrets.POSTGRESQL_USERNAME }}"
-        postgresql_password = "${{ secrets.POSTGRESQL_PASSWORD }}"
-        postgresql_database = "${{ secrets.POSTGRESQL_DATABASE }}"
-        EOF
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-    # Initialize Terraform
-    - name: Terraform Init
-      run: terraform init
+      - name: Create Terraform variables file
+        run: |
+          cat > terraform/postgresql/terraform.tfvars << EOF
+          server_host = "${{ secrets.SERVER_HOST }}"
+          postgresql_username = "${{ secrets.POSTGRESQL_USERNAME }}"
+          postgresql_password = "${{ secrets.POSTGRESQL_PASSWORD }}"
+          postgresql_port = "${{ secrets.POSTGRESQL_PORT }}"
+          postgresql_database = "${{ secrets.POSTGRESQL_DATABASE }}"
+          postgresql_version = "17"
+          EOF
 
-    # Format Terraform code
-    - name: Terraform Format
-      run: terraform fmt
+      - name: Terraform Init
+        working-directory: terraform/postgresql
+        run: terraform init
 
-    # Format check
-    - name: Terraform Format Check
-      run: terraform fmt -check
+      - name: Check PostgreSQL Status
+        id: check-postgresql
+        working-directory: terraform/postgresql
+        run: |
+          # Проверяем статус PostgreSQL
+          if terraform apply -auto-approve -target=null_resource.postgresql_check; then
+            echo "PostgreSQL 17 is already installed and up to date"
+            echo "status=up_to_date" >> $GITHUB_OUTPUT
+          else
+            # Проверяем код выхода для определения действия
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 1 ]; then
+              echo "PostgreSQL is installed but version mismatch"
+              echo "status=version_mismatch" >> $GITHUB_OUTPUT
+            elif [ $EXIT_CODE -eq 2 ]; then
+              echo "PostgreSQL is not installed"
+              echo "status=not_installed" >> $GITHUB_OUTPUT
+            else
+              echo "Unknown error occurred"
+              echo "status=error" >> $GITHUB_OUTPUT
+            fi
+          fi
 
-    # Plan changes (only if we have variables)
-    - name: Terraform Plan
-      if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
-      run: terraform plan -input=false
+      - name: Install PostgreSQL (if not installed)
+        if: steps.check-postgresql.outputs.status == 'not_installed'
+        working-directory: terraform/postgresql
+        run: terraform apply -auto-approve -target=null_resource.postgresql_install
 
-    # Apply changes on push to prod
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false 
+      - name: Upgrade PostgreSQL (if version mismatch)
+        if: steps.check-postgresql.outputs.status == 'version_mismatch'
+        working-directory: terraform/postgresql
+        run: terraform apply -auto-approve -target=null_resource.postgresql_upgrade
+
+      - name: Verify Installation
+        working-directory: terraform/postgresql
+        run: |
+          # Проверяем, что PostgreSQL 17 установлен и работает
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'SSH_SCRIPT'
+            # Проверяем версию
+            VERSION=$(psql --version | grep -oE '[0-9]+\.[0-9]+' | head -1)
+            if [ "$VERSION" = "17" ]; then
+              echo "PostgreSQL 17 is correctly installed"
+            else
+              echo "PostgreSQL version mismatch: $VERSION"
+              exit 1
+            fi
+            
+            # Проверяем, что сервис запущен
+            if systemctl is-active --quiet postgresql; then
+              echo "PostgreSQL service is running"
+            else
+              echo "PostgreSQL service is not running"
+              exit 1
+            fi
+            
+            # Проверяем подключение к базе данных
+            if PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}" psql -h localhost -U "${{ secrets.POSTGRESQL_USERNAME }}" -d "${{ secrets.POSTGRESQL_DATABASE }}" -c "SELECT version();" > /dev/null 2>&1; then
+              echo "Database connection successful"
+            else
+              echo "Database connection failed"
+              exit 1
+            fi
+          SSH_SCRIPT
