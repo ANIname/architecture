@@ -35,7 +35,7 @@ jobs:
               echo "::set-output name=status::not_installed"
             fi
 
-              - name: Install PostgreSQL 17 (if not installed)
+      - name: Install PostgreSQL 17 (if not installed)
         if: steps.check_pg.outputs.status == 'not_installed'
         uses: appleboy/ssh-action@master
         with:
@@ -63,7 +63,7 @@ jobs:
             sudo systemctl restart postgresql
             echo "✨ PostgreSQL configuration completed"
 
-              - name: Upgrade PostgreSQL to version 17 (if needed)
+      - name: Upgrade PostgreSQL to version 17 (if needed)
         if: steps.check_pg.outputs.status == 'needs_upgrade'
         uses: appleboy/ssh-action@master
         with:
