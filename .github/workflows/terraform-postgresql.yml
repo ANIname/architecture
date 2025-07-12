@@ -1,37 +1,39 @@
-name: Create PostgreSQL DB and User
+name: PostgreSQL Setup
 
 on:
   push:
     branches: [prod]
 
 jobs:
-  create-db:
+  setup-postgresql:
     runs-on: ubuntu-latest
     environment: prod
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.5.0"
 
-      - name: Create Terraform variables file
-        run: |
-          cat > terraform/postgresql/terraform.tfvars <<EOF
-          db_host         = "${{ secrets.DB_HOST }}"
-          db_admin_user   = "${{ secrets.DB_ADMIN_USER }}"
-          db_admin_password = "${{ secrets.DB_ADMIN_PASSWORD }}"
-          app_user        = "${{ secrets.APP_USER }}"
-          app_password    = "${{ secrets.APP_PASSWORD }}"
-          app_db          = "${{ secrets.APP_DB }}"
-          EOF
-
-      - name: Terraform Init
-        working-directory: terraform/postgresql
-        run: terraform init
+      - name: Check PostgreSQL
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            if ! which psql > /dev/null; then
+              apt update && apt install -y postgresql-17
+              systemctl start postgresql
+            fi
 
       - name: Terraform Apply
         working-directory: terraform/postgresql
-        run: terraform apply -auto-approve
+        run: |
+          terraform init
+          terraform apply -auto-approve \
+            -var="db_host=${{ secrets.SERVER_HOST }}" \
+            -var="app_user=${{ secrets.POSTGRESQL_USERNAME }}" \
+            -var="app_password=${{ secrets.POSTGRESQL_PASSWORD }}" \
+            -var="app_db=${{ secrets.POSTGRESQL_DATABASE }}"
