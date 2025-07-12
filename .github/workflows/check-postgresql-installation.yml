@@ -42,7 +42,10 @@ jobs:
               CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;
               GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};
               ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
-              \c ${{ secrets.POSTGRESQL_DATABASE }}
+            PSQL_EOF
+
+            # Connect to database and set schema permissions
+            sudo -u postgres psql -d ${{ secrets.POSTGRESQL_DATABASE }} <<'PSQL_EOF'
               GRANT ALL ON SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
               GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
               GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
@@ -68,5 +71,9 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             export PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}"
-            psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();"
-            echo "✅ Connection test successful" 
+            if psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" > /dev/null 2>&1; then
+              echo "✅ Connection test successful"
+            else
+              echo "❌ Connection test failed"
+              exit 1
+            fi 
