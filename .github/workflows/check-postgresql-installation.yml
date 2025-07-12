@@ -8,9 +8,6 @@ jobs:
   check-postgresql-installation:
     runs-on: ubuntu-latest
     environment: prod
-    outputs:
-      status: ${{ steps.set_status.outputs.status }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -27,24 +24,19 @@ jobs:
               PG_VERSION=$(psql --version | grep -oP '\d+' | head -1)
               if [[ "$PG_VERSION" == "17" ]]; then
                 echo "✅ PostgreSQL 17 is already installed"
-                echo "status=up_to_date" >> $GITHUB_OUTPUT
+                echo "::set-output name=status::up_to_date"
               else
                 echo "⚠️ PostgreSQL needs upgrade from version $PG_VERSION"
-                echo "status=needs_upgrade" >> $GITHUB_OUTPUT
-                echo "current_version=$PG_VERSION" >> $GITHUB_OUTPUT
+                echo "::set-output name=status::needs_upgrade"
+                echo "::set-output name=current_version::$PG_VERSION"
               fi
             else
               echo "❌ PostgreSQL is not installed"
-              echo "status=not_installed" >> $GITHUB_OUTPUT
+              echo "::set-output name=status::not_installed"
             fi
 
-      - name: Set status output
-        id: set_status
-        run: |
-          echo "status=${{ steps.check_pg.outputs.status }}" >> $GITHUB_OUTPUT
-
-      - name: Install PostgreSQL 17 (if not installed)
-        if: steps.set_status.outputs.status == 'not_installed'
+              - name: Install PostgreSQL 17 (if not installed)
+        if: steps.check_pg.outputs.status == 'not_installed'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -71,8 +63,8 @@ jobs:
             sudo systemctl restart postgresql
             echo "✨ PostgreSQL configuration completed"
 
-      - name: Upgrade PostgreSQL to version 17 (if needed)
-        if: steps.set_status.outputs.status == 'needs_upgrade'
+              - name: Upgrade PostgreSQL to version 17 (if needed)
+        if: steps.check_pg.outputs.status == 'needs_upgrade'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
