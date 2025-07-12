@@ -1,0 +1,57 @@
+name: 'Terraform PostgreSQL Deployment'
+
+on:
+  push:
+    branches: [ "prod" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: 'Terraform PostgreSQL'
+    runs-on: ubuntu-latest
+    environment: prod
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    # Checkout the repository
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Setup Terraform
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+
+    # Create terraform.tfvars with secrets
+    - name: Create Terraform Variables
+      run: |
+        cat > terraform.tfvars << EOF
+        server_host         = "${{ secrets.SERVER_HOST }}"
+        server_username     = "${{ secrets.SERVER_USERNAME }}"
+        server_password     = "${{ secrets.SERVER_PASSWORD }}"
+        postgresql_username = "${{ secrets.POSTGRESQL_USERNAME }}"
+        postgresql_password = "${{ secrets.POSTGRESQL_PASSWORD }}"
+        postgresql_database = "${{ secrets.POSTGRESQL_DATABASE }}"
+        EOF
+
+    # Initialize Terraform
+    - name: Terraform Init
+      run: terraform init
+
+    # Format check
+    - name: Terraform Format
+      run: terraform fmt -check
+
+    # Plan changes
+    - name: Terraform Plan
+      run: terraform plan -input=false
+
+    # Apply changes on push to prod
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+      run: terraform apply -auto-approve -input=false 
