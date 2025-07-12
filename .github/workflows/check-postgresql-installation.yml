@@ -50,12 +50,24 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             echo "🚀 Starting PostgreSQL 17 installation..."
+            
+            # Add PostgreSQL official repository
+            sudo apt update
+            sudo apt install -y wget gnupg2 lsb-release
+            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+            echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+            
+            # Update package list and install PostgreSQL 17
             sudo apt update
             sudo apt install -y postgresql-17 postgresql-contrib-17
             echo "📦 PostgreSQL packages installed"
+            
+            # Start and enable PostgreSQL service
             sudo systemctl start postgresql
             sudo systemctl enable postgresql
             echo "🔄 PostgreSQL service started"
+            
+            # Create database and user
             sudo -u postgres psql <<'PSQL_EOF'
               CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};
               CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}';
@@ -63,9 +75,13 @@ jobs:
               ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
             PSQL_EOF
             echo "👤 Database and user created"
-            sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/'" /etc/postgresql/17/main/postgresql.conf
+            
+            # Configure PostgreSQL to accept connections
+            sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf
             sudo sed -i "s/local   all             all                                     peer/local   all             all                                     md5/" /etc/postgresql/17/main/pg_hba.conf
             sudo sed -i "s/host    all             all             127.0.0.1\/32            md5/host    all             all             0.0.0.0\/0               md5/" /etc/postgresql/17/main/pg_hba.conf
+            
+            # Restart PostgreSQL
             sudo systemctl restart postgresql
             echo "✨ PostgreSQL configuration completed"
 
@@ -79,21 +95,31 @@ jobs:
           script: |
             echo "📦 Creating backup of current PostgreSQL installation..."
             sudo -u postgres pg_dumpall > /tmp/postgresql_backup_$(date +%Y%m%d_%H%M%S).sql
+            
             echo "🗑️ Removing old PostgreSQL version..."
             sudo systemctl stop postgresql
             sudo apt remove --purge -y postgresql*
             sudo apt autoremove -y
             sudo rm -rf /var/lib/postgresql/*/main
+            
             echo "🚀 Installing PostgreSQL 17..."
+            # Add PostgreSQL official repository
+            sudo apt update
+            sudo apt install -y wget gnupg2 lsb-release
+            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+            echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+            
             sudo apt update
             sudo apt install -y postgresql-17 postgresql-contrib-17
             sudo -u postgres /usr/lib/postgresql/17/bin/initdb -D /var/lib/postgresql/17/main
             sudo systemctl start postgresql
             sudo systemctl enable postgresql
+            
             echo "♻️ Restoring database from backup..."
             sudo -u postgres psql -f /tmp/postgresql_backup_*.sql
+            
             echo "⚙️ Configuring PostgreSQL..."
-            sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/'" /etc/postgresql/17/main/postgresql.conf
+            sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf
             sudo sed -i "s/local   all             all                                     peer/local   all             all                                     md5/" /etc/postgresql/17/main/pg_hba.conf
             sudo sed -i "s/host    all             all             127.0.0.1\/32            md5/host    all             all             0.0.0.0\/0               md5/" /etc/postgresql/17/main/pg_hba.conf
             sudo systemctl restart postgresql
