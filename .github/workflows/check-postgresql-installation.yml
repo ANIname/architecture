@@ -69,6 +69,19 @@ jobs:
             sudo -u postgres psql -c "CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};" 2>/dev/null || true
             sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};"
             
+            # Verify user and database exist
+            echo "Verifying user and database creation..."
+            sudo -u postgres psql -c "\du" | grep ${{ secrets.POSTGRESQL_USERNAME }} || {
+              echo "User not found, creating again..."
+              sudo -u postgres psql -c "CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;"
+            }
+            
+            sudo -u postgres psql -l | grep ${{ secrets.POSTGRESQL_DATABASE }} || {
+              echo "Database not found, creating again..."
+              sudo -u postgres psql -c "CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};"
+              sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};"
+            }
+            
             # Configure authentication
             echo "local   all             postgres                                peer" | sudo tee /etc/postgresql/17/main/pg_hba.conf
             echo "local   all             all                                     md5" | sudo tee -a /etc/postgresql/17/main/pg_hba.conf
@@ -151,28 +164,49 @@ jobs:
                 exit 1
               fi
               
+              # Wait a moment for PostgreSQL to be fully ready
+              sleep 3
+              
               # Test connection with password
               export PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}"
               echo "Testing connection to database ${{ secrets.POSTGRESQL_DATABASE }} as user ${{ secrets.POSTGRESQL_USERNAME }}"
               
               # Try connection with explicit password
-              psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" 2>&1 || {
+              if psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" 2>&1; then
+                echo "✅ Connection test successful"
+              else
                 echo "❌ Connection failed, trying alternative methods..."
                 
                 # Try with postgres user first to check if user exists
+                echo "Checking if user exists..."
                 sudo -u postgres psql -c "\du" | grep ${{ secrets.POSTGRESQL_USERNAME }} || echo "User ${{ secrets.POSTGRESQL_USERNAME }} not found"
                 
                 # Try connecting as postgres user to test database
-                sudo -u postgres psql -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" || echo "Cannot connect as postgres user"
+                echo "Checking if database exists..."
+                sudo -u postgres psql -l | grep ${{ secrets.POSTGRESQL_DATABASE }} || echo "Database ${{ secrets.POSTGRESQL_DATABASE }} not found"
+                
+                # Try connecting as postgres user to postgres database
+                echo "Testing connection as postgres user..."
+                sudo -u postgres psql -d postgres -c "SELECT version();" || echo "Cannot connect as postgres user"
                 
                 # Show pg_hba.conf for debugging
                 echo "Current pg_hba.conf:"
                 sudo cat /etc/postgresql/17/main/pg_hba.conf
                 
-                exit 1
-              }
-              
-              echo "✅ Connection test successful"
+                # Try to create user and database again
+                echo "Attempting to create user and database again..."
+                sudo -u postgres psql -c "CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;" 2>/dev/null || true
+                sudo -u postgres psql -c "CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};" 2>/dev/null || true
+                sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};"
+                
+                # Try connection again
+                if psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" 2>&1; then
+                  echo "✅ Connection test successful after retry"
+                else
+                  echo "❌ Connection still failed"
+                  exit 1
+                fi
+              fi
             else
               echo "❌ PostgreSQL is not installed, skipping connection test"
             fi 
