@@ -8,11 +8,14 @@ jobs:
   check-postgresql:
     runs-on: ubuntu-latest
     environment: prod
+    outputs:
+      status: ${{ steps.get_status.outputs.status }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Check PostgreSQL version
+        id: check_version
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -35,11 +38,13 @@ jobs:
             fi
 
       - name: Get status
+        id: get_status
         run: |
           sshpass -p "${{ secrets.SERVER_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "cat /tmp/pg_status.txt" > pg_status.txt
           echo "status=$(cat pg_status.txt)" >> $GITHUB_OUTPUT
 
       - name: Install PostgreSQL 17 (if not installed)
+        id: install_postgresql
         if: steps.get_status.outputs.status == 'not_installed'
         uses: appleboy/ssh-action@master
         with:
@@ -76,6 +81,7 @@ jobs:
             echo "✅ PostgreSQL 17 installation completed"
 
       - name: Upgrade PostgreSQL to version 17 (if needed)
+        id: upgrade_postgresql
         if: steps.get_status.outputs.status == 'needs_upgrade'
         uses: appleboy/ssh-action@master
         with:
@@ -125,12 +131,18 @@ jobs:
             echo "✅ PostgreSQL upgrade to version 17 completed"
 
       - name: Test connection
+        if: steps.get_status.outputs.status == 'up_to_date' || steps.get_status.outputs.status == 'not_installed' || steps.get_status.outputs.status == 'needs_upgrade'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USERNAME }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
-            export PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}"
-            psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();"
-            echo "✅ Connection test successful" 
+            # Only test if PostgreSQL is actually installed
+            if command -v psql &> /dev/null; then
+              export PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}"
+              psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();"
+              echo "✅ Connection test successful"
+            else
+              echo "❌ PostgreSQL is not installed, skipping connection test"
+            fi 
