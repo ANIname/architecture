@@ -144,6 +144,51 @@ jobs:
             sudo systemctl restart postgresql
             echo "✨ Upgrade completed successfully"
 
+      - name: Ensure database and user exist
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            echo "🔍 Checking if database and user exist..."
+            
+            # Check if user exists
+            USER_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${{ secrets.POSTGRESQL_USERNAME }}';")
+            if [[ "$USER_EXISTS" != "1" ]]; then
+              echo "👤 Creating user ${{ secrets.POSTGRESQL_USERNAME }}..."
+              sudo -u postgres psql -c "CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;"
+            else
+              echo "✅ User ${{ secrets.POSTGRESQL_USERNAME }} already exists"
+            fi
+            
+            # Check if database exists
+            DB_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${{ secrets.POSTGRESQL_DATABASE }}';")
+            if [[ "$DB_EXISTS" != "1" ]]; then
+              echo "🗄️ Creating database ${{ secrets.POSTGRESQL_DATABASE }}..."
+              sudo -u postgres psql -c "CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};"
+            else
+              echo "✅ Database ${{ secrets.POSTGRESQL_DATABASE }} already exists"
+            fi
+            
+            # Grant permissions
+            echo "🔐 Setting up permissions..."
+            sudo -u postgres psql <<'PSQL_EOF'
+              GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
+            PSQL_EOF
+            
+            # Connect to database and set schema permissions
+            sudo -u postgres psql -d ${{ secrets.POSTGRESQL_DATABASE }} <<'PSQL_EOF'
+              GRANT ALL ON SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${{ secrets.POSTGRESQL_USERNAME }};
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${{ secrets.POSTGRESQL_USERNAME }};
+            PSQL_EOF
+            
+            echo "✨ Database and user setup completed"
+
       - name: Test PostgreSQL connection
         uses: appleboy/ssh-action@master
         with:
