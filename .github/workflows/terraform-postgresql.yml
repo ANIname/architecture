@@ -24,8 +24,16 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             if ! which psql > /dev/null; then
-              apt update && apt install -y postgresql-17
+              wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
+              echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+              apt update
+              apt install -y postgresql-17
               systemctl start postgresql
+              
+              # Allow external connections
+              sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf
+              echo "host all all 0.0.0.0/0 trust" >> /etc/postgresql/17/main/pg_hba.conf
+              systemctl restart postgresql
             fi
 
       - name: Terraform Apply
