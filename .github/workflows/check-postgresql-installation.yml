@@ -135,9 +135,16 @@ jobs:
           script: |
             PG_VERSION=$(psql --version | grep -oP '\d+' | head -1)
             echo "📊 Final PostgreSQL version: $PG_VERSION"
+            
+            # Set password for connection test
+            export PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}"
+            
             if psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" &> /dev/null; then
               echo "✅ PostgreSQL connection test successful"
             else
               echo "❌ PostgreSQL connection test failed"
+              echo "Trying to debug connection..."
+              echo "Testing with verbose output:"
+              psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();"
               exit 1
             fi 
