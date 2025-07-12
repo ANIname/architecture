@@ -24,15 +24,15 @@ jobs:
               PG_VERSION=$(psql --version | grep -oP '\d+' | head -1)
               if [[ "$PG_VERSION" == "17" ]]; then
                 echo "✅ PostgreSQL 17 is already installed"
-                echo "::set-output name=status::up_to_date"
+                echo "status=up_to_date" >> $GITHUB_OUTPUT
               else
                 echo "⚠️ PostgreSQL needs upgrade from version $PG_VERSION"
-                echo "::set-output name=status::needs_upgrade"
-                echo "::set-output name=current_version::$PG_VERSION"
+                echo "status=needs_upgrade" >> $GITHUB_OUTPUT
+                echo "current_version=$PG_VERSION" >> $GITHUB_OUTPUT
               fi
             else
               echo "❌ PostgreSQL is not installed"
-              echo "::set-output name=status::not_installed"
+              echo "status=not_installed" >> $GITHUB_OUTPUT
             fi
 
       - name: Install PostgreSQL 17 (if not installed)
@@ -94,6 +94,7 @@ jobs:
             echo "✨ Upgrade completed successfully"
 
       - name: Verify PostgreSQL installation
+        if: steps.check_pg.outputs.status != 'up_to_date'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
