@@ -1,14 +1,13 @@
-name: Check and install PostgreSQL
+name: Create PostgreSQL DB and User
 
 on:
   push:
     branches: [prod]
 
 jobs:
-  check-and-install-postgresql:
+  create-db:
     runs-on: ubuntu-latest
     environment: prod
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -18,88 +17,21 @@ jobs:
         with:
           terraform_version: "1.5.0"
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-
       - name: Create Terraform variables file
         run: |
-          cat > terraform/postgresql/terraform.tfvars << EOF
-          server_host = "${{ secrets.SERVER_HOST }}"
-          postgresql_username = "${{ secrets.POSTGRESQL_USERNAME }}"
-          postgresql_password = "${{ secrets.POSTGRESQL_PASSWORD }}"
-          postgresql_port = "${{ secrets.POSTGRESQL_PORT }}"
-          postgresql_database = "${{ secrets.POSTGRESQL_DATABASE }}"
-          postgresql_version = "17"
+          cat > terraform/postgresql/terraform.tfvars <<EOF
+          db_host         = "${{ secrets.DB_HOST }}"
+          db_admin_user   = "${{ secrets.DB_ADMIN_USER }}"
+          db_admin_password = "${{ secrets.DB_ADMIN_PASSWORD }}"
+          app_user        = "${{ secrets.APP_USER }}"
+          app_password    = "${{ secrets.APP_PASSWORD }}"
+          app_db          = "${{ secrets.APP_DB }}"
           EOF
 
       - name: Terraform Init
         working-directory: terraform/postgresql
         run: terraform init
 
-      - name: Check PostgreSQL Status
-        id: check-postgresql
+      - name: Terraform Apply
         working-directory: terraform/postgresql
-        run: |
-          # Проверяем статус PostgreSQL
-          if terraform apply -auto-approve -target=null_resource.postgresql_check; then
-            echo "PostgreSQL 17 is already installed and up to date"
-            echo "status=up_to_date" >> $GITHUB_OUTPUT
-          else
-            # Проверяем код выхода для определения действия
-            EXIT_CODE=$?
-            if [ $EXIT_CODE -eq 1 ]; then
-              echo "PostgreSQL is installed but version mismatch"
-              echo "status=version_mismatch" >> $GITHUB_OUTPUT
-            elif [ $EXIT_CODE -eq 2 ]; then
-              echo "PostgreSQL is not installed"
-              echo "status=not_installed" >> $GITHUB_OUTPUT
-            else
-              echo "Unknown error occurred"
-              echo "status=error" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-      - name: Install PostgreSQL (if not installed)
-        if: steps.check-postgresql.outputs.status == 'not_installed'
-        working-directory: terraform/postgresql
-        run: terraform apply -auto-approve -target=null_resource.postgresql_install
-
-      - name: Upgrade PostgreSQL (if version mismatch)
-        if: steps.check-postgresql.outputs.status == 'version_mismatch'
-        working-directory: terraform/postgresql
-        run: terraform apply -auto-approve -target=null_resource.postgresql_upgrade
-
-      - name: Verify Installation
-        working-directory: terraform/postgresql
-        run: |
-          # Проверяем, что PostgreSQL 17 установлен и работает
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'SSH_SCRIPT'
-            # Проверяем версию
-            VERSION=$(psql --version | grep -oE '[0-9]+\.[0-9]+' | head -1)
-            if [ "$VERSION" = "17" ]; then
-              echo "PostgreSQL 17 is correctly installed"
-            else
-              echo "PostgreSQL version mismatch: $VERSION"
-              exit 1
-            fi
-            
-            # Проверяем, что сервис запущен
-            if systemctl is-active --quiet postgresql; then
-              echo "PostgreSQL service is running"
-            else
-              echo "PostgreSQL service is not running"
-              exit 1
-            fi
-            
-            # Проверяем подключение к базе данных
-            if PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}" psql -h localhost -U "${{ secrets.POSTGRESQL_USERNAME }}" -d "${{ secrets.POSTGRESQL_DATABASE }}" -c "SELECT version();" > /dev/null 2>&1; then
-              echo "Database connection successful"
-            else
-              echo "Database connection failed"
-              exit 1
-            fi
-          SSH_SCRIPT
+        run: terraform apply -auto-approve
