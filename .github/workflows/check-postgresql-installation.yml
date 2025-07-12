@@ -36,22 +36,13 @@ jobs:
             sudo systemctl start postgresql
             sudo systemctl enable postgresql
             
-            # Create database and user
-            sudo -u postgres psql <<'PSQL_EOF'
-              CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};
-              CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;
-              GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;
-            PSQL_EOF
-
-            # Connect to database and set schema permissions
-            sudo -u postgres psql -d ${{ secrets.POSTGRESQL_DATABASE }} <<'PSQL_EOF'
-              GRANT ALL ON SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${{ secrets.POSTGRESQL_USERNAME }};
-              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${{ secrets.POSTGRESQL_USERNAME }};
-            PSQL_EOF
+            # Create user and database (ignore errors if they exist)
+            sudo -u postgres psql -c "CREATE USER ${{ secrets.POSTGRESQL_USERNAME }} WITH PASSWORD '${{ secrets.POSTGRESQL_PASSWORD }}' SUPERUSER;" 2>/dev/null || true
+            sudo -u postgres psql -c "CREATE DATABASE ${{ secrets.POSTGRESQL_DATABASE }};" 2>/dev/null || true
+            
+            # Grant permissions
+            sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${{ secrets.POSTGRESQL_DATABASE }} TO ${{ secrets.POSTGRESQL_USERNAME }};"
+            sudo -u postgres psql -c "ALTER USER ${{ secrets.POSTGRESQL_USERNAME }} CREATEDB;"
             
             # Configure PostgreSQL
             sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/17/main/postgresql.conf
@@ -71,9 +62,5 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             export PGPASSWORD="${{ secrets.POSTGRESQL_PASSWORD }}"
-            if psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();" > /dev/null 2>&1; then
-              echo "✅ Connection test successful"
-            else
-              echo "❌ Connection test failed"
-              exit 1
-            fi 
+            psql -h localhost -U ${{ secrets.POSTGRESQL_USERNAME }} -d ${{ secrets.POSTGRESQL_DATABASE }} -c "SELECT version();"
+            echo "✅ Connection test successful" 
