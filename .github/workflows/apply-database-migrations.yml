@@ -1,14 +1,15 @@
 name: Apply database migrations
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Check and install PostgreSQL"]
+    types: [completed]
     branches: [prod]
 
 jobs:
   apply-main-database-migrations:
     runs-on: ubuntu-latest
     environment: prod
-    needs: [check-postgresql-installation]
 
     steps:
       - name: Checkout code

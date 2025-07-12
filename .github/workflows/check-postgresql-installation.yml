@@ -1,4 +1,4 @@
-name: Check and install PostgreSQL 17
+name: Check and install PostgreSQL
 
 on:
   push:
