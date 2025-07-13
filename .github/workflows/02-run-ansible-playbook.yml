@@ -9,6 +9,7 @@ on:
 jobs:
   run-ansible-playbook:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,12 +18,12 @@ jobs:
         run: |
           mkdir -p inventories/production
           echo "[db]" > inventories/production/hosts.ini
-          echo "{{ secrets.SERVER_HOST }} ansible_user={{ secrets.SERVER_USERNAME }} ansible_ssh_pass={{ secrets.SERVER_PASSWORD }} ansible_python_interpreter=/usr/bin/python3" >> inventories/production/hosts.ini
+          echo "${{ secrets.SERVER_HOST }} ansible_user=${{ secrets.SERVER_USERNAME }} ansible_ssh_pass=${{ secrets.SERVER_PASSWORD }} ansible_python_interpreter=/usr/bin/python3" >> inventories/production/hosts.ini
 
       - name: Run Ansible Playbook
         run: |
           cd ansible
-          ansible-playbook playbooks/site.yml -i inventories/production/hosts.ini
+          ansible-playbook playbooks/site.yml -i ../inventories/production/hosts.ini
         env:
           POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}

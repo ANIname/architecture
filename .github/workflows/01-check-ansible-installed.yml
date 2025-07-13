@@ -6,23 +6,25 @@ on:
 
 jobs:
   check-ansible-installed:
-    - name: Connect to server via SSH and check if ansible is installed
-      uses: appleboy/ssh-action@v1
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USERNAME }}
-        password: ${{ secrets.SERVER_PASSWORD }}
-        script: |
-          echo "🔍 Checking if Ansible is installed..."
-          
-          if ! command -v ansible > /dev/null; then
-            echo "🚫 Ansible is not installed"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Connect to server via SSH and check if ansible is installed
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            echo "🔍 Checking if Ansible is installed..."
+            
+            if ! command -v ansible > /dev/null; then
+              echo "🚫 Ansible is not installed"
 
-            sudo apt install software-properties-common
-            sudo add-apt-repository --yes --update ppa:ansible/ansible
-            sudo apt install ansible
+              sudo apt install software-properties-common
+              sudo add-apt-repository --yes --update ppa:ansible/ansible
+              sudo apt install ansible
 
-            ansible --version
-          else
-            echo "✅ Ansible is already installed"
-          fi
+              ansible --version
+            else
+              echo "✅ Ansible is already installed"
+            fi
