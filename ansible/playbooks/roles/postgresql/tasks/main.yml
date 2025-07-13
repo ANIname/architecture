@@ -18,23 +18,18 @@
     password: "{{ lookup('env', 'POSTGRESQL_PASSWORD') }}"
     expires: 'infinity'
     
-- name: Enable remote access
+- name: Configure PostgreSQL for remote access
   become_user: postgres
   postgresql_conf:
     name: listen_addresses
     value: '*'
     state: present
 
-- name: Enable remote access
+- name: Configure pg_hba.conf for remote access
   lineinfile:
     path: /etc/postgresql/17/main/pg_hba.conf
     line: "host all all 0.0.0.0/0 trust"
-
-- name: Listen addresses
-  lineinfile:
-    path: /etc/postgresql/17/main/postgresql.conf
-    regexp: "^#?listen_addresses =.*"
-    line: "listen_addresses = '*'"
+    state: present
 
 - name: Restart PostgreSQL
   systemd:

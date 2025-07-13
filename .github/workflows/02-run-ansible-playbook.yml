@@ -14,6 +14,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Ansible Collections
+        run: |
+          cd ansible
+          ansible-galaxy collection install -r requirements.yml
+
       - name: Create Hosts File
         run: |
           mkdir -p ansible/inventories/production
