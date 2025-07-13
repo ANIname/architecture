@@ -4,18 +4,19 @@
       - curl
       - ca-certificates
       - gnupg
+      - wget
     update_cache: true
 
-- name: Add NodeSource GPG key
-  apt_key:
-    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
-    state: present
+- name: Download Node.js 22.x setup script
+  get_url:
+    url: https://deb.nodesource.com/setup_22.x
+    dest: /tmp/setup_nodejs.sh
+    mode: '0755'
 
-- name: Add NodeSource repository for Node.js 22
-  apt_repository:
-    repo: "deb https://deb.nodesource.com/node_22.x {{ ansible_distribution_release }} main"
-    state: present
-    update_cache: true
+- name: Run Node.js 22.x setup script
+  shell: /tmp/setup_nodejs.sh
+  args:
+    creates: /etc/apt/sources.list.d/nodesource.list
 
 - name: Install Node.js 22
   apt:
