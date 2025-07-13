@@ -28,16 +28,15 @@
     name: "{{ lookup('env', 'POSTGRESQL_DATABASE') }}"
     port: "{{ lookup('env', 'POSTGRESQL_PORT') }}"
     encoding: 'utf8'
+    state: present
 
 - name: Create PostgreSQL user
   become_user: postgres
   community.postgresql.postgresql_user:
-    db: "{{ lookup('env', 'POSTGRESQL_DATABASE') }}"
     name: "{{ lookup('env', 'POSTGRESQL_USERNAME') }}"
     password: "{{ lookup('env', 'POSTGRESQL_PASSWORD') }}"
     port: "{{ lookup('env', 'POSTGRESQL_PORT') }}"
     encrypted: true
-    priv: "ALL"
     role_attr_flags: "CREATEDB"
 
 - name: Grant schema permissions to user
@@ -47,10 +46,18 @@
     port: "{{ lookup('env', 'POSTGRESQL_PORT') }}"
     query: |
       GRANT ALL ON SCHEMA public TO "{{ lookup('env', 'POSTGRESQL_USERNAME') }}";
-      GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "{{ lookup('env', 'POSTGRESQL_USERNAME') }G}";
+      GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "{{ lookup('env', 'POSTGRESQL_USERNAME') }}";
       GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "{{ lookup('env', 'POSTGRESQL_USERNAME') }}";
       ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "{{ lookup('env', 'POSTGRESQL_USERNAME') }}";
       ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "{{ lookup('env', 'POSTGRESQL_USERNAME') }}";
+
+- name: Grant database permissions to user
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: "{{ lookup('env', 'POSTGRESQL_DATABASE') }}"
+    port: "{{ lookup('env', 'POSTGRESQL_PORT') }}"
+    query: |
+      GRANT ALL PRIVILEGES ON DATABASE "{{ lookup('env', 'POSTGRESQL_DATABASE') }}" TO "{{ lookup('env', 'POSTGRESQL_USERNAME') }}";
     
 - name: Configure PostgreSQL for remote access
   become_user: postgres
