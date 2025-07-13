@@ -51,6 +51,12 @@
     line: "host all all 0.0.0.0/0 trust"
     state: present
 
+- name: Setup PostgreSQL timeZone
+  lineinfile:
+    path: /etc/postgresql/17/main/postgresql.conf
+    regexp: "^#?TimeZone =.*"
+    line: "TimeZone = 'Europe/Kyiv'"
+
 - name: Restart PostgreSQL
   systemd:
     name: postgresql
