@@ -20,11 +20,17 @@ jobs:
             if ! command -v ansible > /dev/null; then
               echo "🚫 Ansible is not installed"
 
+              sudo apt update -y
               sudo apt install software-properties-common
               sudo add-apt-repository --yes --update ppa:ansible/ansible
-              sudo apt install ansible
+              sudo apt update -y
+              sudo apt install -y ansible
+
+              echo "🔍 Checking if Ansible is installed..."
 
               ansible --version
+
+              echo "✅ Ansible is installed"
             else
               echo "✅ Ansible is already installed"
             fi
