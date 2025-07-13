@@ -2,7 +2,7 @@ name: Apply database migrations
 
 on:
   workflow_run:
-    workflows: ["Check and install PostgreSQL"]
+    workflows: ["PostgreSQL Setup"]
     types: [completed]
     branches: [prod]
 
