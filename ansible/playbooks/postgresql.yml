@@ -7,6 +7,16 @@
     postgresql_port: 5432
     
   tasks:
+    - name: Remove old PostgreSQL repository
+      file:
+        path: /etc/apt/sources.list.d/pgdg.list
+        state: absent
+
+    - name: Remove old PostgreSQL GPG key
+      file:
+        path: /usr/share/keyrings/postgresql-keyring.gpg
+        state: absent
+
     - name: Add PostgreSQL GPG key
       apt_key:
         url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
