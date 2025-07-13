@@ -1,4 +1,2 @@
----
 collections:
   - name: community.postgresql
-    version: ">=1.0.0" 
