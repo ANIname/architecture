@@ -1,0 +1,30 @@
+name: Run Ansible Playbook
+
+on:
+  workflow_run:
+    workflows: ["Check Ansible Installed"]
+    types: [completed]
+    branches: [prod]
+
+jobs:
+  run-ansible-playbook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create Hosts File
+        run: |
+          mkdir -p inventories/production
+          echo "[db]" > inventories/production/hosts.ini
+          echo "{{ secrets.SERVER_HOST }} ansible_user={{ secrets.SERVER_USERNAME }} ansible_ssh_pass={{ secrets.SERVER_PASSWORD }} ansible_python_interpreter=/usr/bin/python3" >> inventories/production/hosts.ini
+
+      - name: Run Ansible Playbook
+        run: |
+          cd ansible
+          ansible-playbook playbooks/site.yml -i inventories/production/hosts.ini
+        env:
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_PORT: ${{ secrets.POSTGRESQL_PORT }}

@@ -1,0 +1,42 @@
+- name: Install PostgreSQL
+  apt:
+    name: postgresql-17
+    update_cache: true
+
+- name: Create database
+  become_user: postgres
+  postgresql_db:
+    name: "{{ lookup('env', 'POSTGRESQL_DATABASE') }}"
+    port: "{{ lookup('env', 'POSTGRESQL_PORT') }}"
+    encoding: 'utf8'
+
+- name: Create PostgreSQL user
+  become_user: postgres
+  postgresql_user:
+    db: "{{ lookup('env', 'POSTGRESQL_DATABASE') }}"
+    name: "{{ lookup('env', 'POSTGRESQL_USERNAME') }}"
+    password: "{{ lookup('env', 'POSTGRESQL_PASSWORD') }}"
+    expires: 'infinity'
+    
+- name: Enable remote access
+  become_user: postgres
+  postgresql_conf:
+    name: listen_addresses
+    value: '*'
+    state: present
+
+- name: Enable remote access
+  lineinfile:
+    path: /etc/postgresql/17/main/pg_hba.conf
+    line: "host all all 0.0.0.0/0 trust"
+
+- name: Listen addresses
+  lineinfile:
+    path: /etc/postgresql/17/main/postgresql.conf
+    regexp: "^#?listen_addresses =.*"
+    line: "listen_addresses = '*'"
+
+- name: Restart PostgreSQL
+  systemd:
+    name: postgresql
+    state: restarted
