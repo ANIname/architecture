@@ -7,22 +7,14 @@
     postgresql_port: 5432
     
   tasks:
-    - name: Download PostgreSQL GPG key
-      get_url:
-        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
-        dest: /tmp/postgresql-key.asc
-        mode: '0644'
-
     - name: Add PostgreSQL GPG key
-      shell: |
-        gpg --dearmor /tmp/postgresql-key.asc
-        mv /tmp/postgresql-key.asc.gpg /usr/share/keyrings/postgresql-keyring.gpg
-      args:
-        creates: /usr/share/keyrings/postgresql-keyring.gpg
+      apt_key:
+        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        state: present
 
     - name: Add PostgreSQL repository
       apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt/ {{ ansible_distribution_release }}-pgdg main"
+        repo: "deb http://apt.postgresql.org/pub/repos/apt/ {{ ansible_distribution_release }}-pgdg main"
         state: present
         filename: pgdg
         update_cache: yes
@@ -32,6 +24,7 @@
         name: 
           - postgresql-{{ postgresql_version }}
           - postgresql-client-{{ postgresql_version }}
+          - python3-psycopg2
         state: present
 
     - name: Start and enable PostgreSQL service
@@ -64,15 +57,14 @@
         mode: '0700'
 
     - name: Create PostgreSQL user
-      become_user: postgres
       postgresql_user:
         name: "{{ lookup('env', 'POSTGRESQL_USERNAME') }}"
         password: "{{ lookup('env', 'POSTGRESQL_PASSWORD') }}"
         login: yes
         state: present
+        db: postgres
 
     - name: Create PostgreSQL database
-      become_user: postgres
       postgresql_db:
         name: "{{ lookup('env', 'POSTGRESQL_DATABASE') }}"
         owner: "{{ lookup('env', 'POSTGRESQL_USERNAME') }}"
