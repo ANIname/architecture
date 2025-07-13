@@ -1,0 +1,21 @@
+name: Apply Database Migrations
+
+on:
+  workflow_run:
+    workflows: ["Run Ansible Playbook"]
+    types: [completed]
+    branches: [prod]
+
+jobs:
+  apply-database-migrations:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prisma migrate
+        run: npx prisma migrate deploy --schema ./db/postgresql/schema.prisma
+        env:
+          ANINAME_POSTGRES_URL: postgresql://${{ secrets.POSTGRESQL_USERNAME }}:${{ secrets.POSTGRESQL_PASSWORD }}@${{ secrets.SERVER_HOST }}:${{ secrets.POSTGRESQL_PORT }}/${{ secrets.POSTGRESQL_DATABASE }} 
