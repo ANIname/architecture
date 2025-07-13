@@ -3,6 +3,7 @@
     name:
       - wget
       - ca-certificates
+      - python3-psycopg2
     update_cache: true
 
 - name: Add PostgreSQL official APT repository key
