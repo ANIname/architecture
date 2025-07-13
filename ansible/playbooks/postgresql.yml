@@ -7,19 +7,24 @@
     postgresql_port: 5432
     
   tasks:
-    - name: Add PostgreSQL GPG key
-      apt_key:
+    - name: Download PostgreSQL GPG key
+      get_url:
         url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
-        state: present
+        dest: /tmp/postgresql-key.asc
+        mode: '0644'
+
+    - name: Add PostgreSQL GPG key
+      shell: |
+        gpg --dearmor /tmp/postgresql-key.asc
+        mv /tmp/postgresql-key.asc.gpg /usr/share/keyrings/postgresql-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/postgresql-keyring.gpg
 
     - name: Add PostgreSQL repository
       apt_repository:
         repo: "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt/ {{ ansible_distribution_release }}-pgdg main"
         state: present
         filename: pgdg
-
-    - name: Update apt cache
-      apt:
         update_cache: yes
 
     - name: Install PostgreSQL 17
