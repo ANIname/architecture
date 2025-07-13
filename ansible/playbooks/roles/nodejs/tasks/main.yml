@@ -23,10 +23,10 @@
     name: nodejs
     update_cache: true
 
-- name: Install npm (if not included with nodejs package)
-  apt:
-    name: npm
-    update_cache: true
+- name: Clean up setup script
+  file:
+    path: /tmp/setup_nodejs.sh
+    state: absent
 
 - name: Verify Node.js installation
   command: node --version
