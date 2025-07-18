@@ -193,6 +193,7 @@ model Game {
   userId String
   title  GameName
 
+  potionBrewing     GamePotionBrewing?
   gonnaBeLucky      GameGonnaBeLucky?
   rockPaperScissors GameRockPaperScissors?
   discordGuild      GameDiscordGuild?
@@ -204,6 +205,36 @@ model Game {
   deletedAt DateTime?
 
   @@unique([userId, title])
+}
+
+model GamePotionBrewing {
+  id     String  @id @default(uuid())
+  gameId String @unique
+
+  points Int
+
+  events GamePotionBrewingEvent[]
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+}
+
+model GamePotionBrewingEvent {
+  id     String  @id @default(uuid())
+  gamePotionBrewingId String
+
+  data String
+  declination String
+
+  points Int
+
+  gamePotionBrewing GamePotionBrewing @relation(fields: [gamePotionBrewingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
 }
 
 model GameGonnaBeLucky {
@@ -299,6 +330,7 @@ model GameDiscordGuildEvent {
 }
 
 enum GameName {
+  potionBrewing
   gonnaBeLucky
   rockPaperScissors
   discordGuild
